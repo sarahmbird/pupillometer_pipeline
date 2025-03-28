@@ -1,0 +1,158 @@
+---
+title: "Pupillometer_Pipeline"
+author: "Sarah Bird"
+date: "2025-03-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Read in libraries
+library(here)
+library(ggplot2)
+library(qgam)
+library(doremi)
+library(DescTools)
+
+# Set up rmarkdown folder
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE,
+                      fig.width=10, fig.height=5,
+                      dpi=300, 
+                      knitr.kable.NA = '--')
+
+# Load functions needed for the cleaning process
+file_list <- list.files(path = here::here("R"))
+for (i in 1:length(file_list)) {
+  source(here::here("R", file_list[i]))
+}
+```
+
+## Pupillometer pipeline tutorial
+
+
+### Reading in Sample Trajectory Data
+
+This step reads in a selection of sample trajectory data collected from a handheld pupillometer. The functions provided in this R package will assume that the input data is in long format (i.e. one row per timepoint in the pupil trajectory for each participant trial). The required input variables are as follows:
+
+1. Ptid: A numeric vector. This is a variable that identifies each unique participant in the dataset
+2. pupil_measured: A character vector. This variable defines which pupil the trajectory was collected on. Will take on either a value of "Right" or "Left".
+3. time: A numeric vector. This is a variable that contains each unique time where a measurement was collected in the pupillary trajectory. This value should strictly be positive, and should be in long format.
+4. mtm: A character vector. This is a variable that uniquely identifies each timepoint where pupillary trajectories were assessed in the dataset. In the case of our dataset, the mtm variable takes on values of 0_Pre, 1_Post1, and 2_Post2.
+5. pct_EyeObstructed: (OPTIONAL) A numeric vector. This variable contains summary information for each participant-trial identifying the percent of pupillary obstruction that occurs during the whole length of the pupil trajectory. It is recommended that users remove trials where there is greater than 60% obstruction, which is demonstrated in the first step below.
+6. mtmTrial: A numeric vector. In the case of multiple trials at a particular timepoint for one eye, this is an identifier that orders the trials in order of when they were conducted. 
+7. pd: A numeric vector. This variable contains measurements of pupil diameter at each unique time in the trajectory as specified by the 'time' variable.
+8. bin: A numeric vector. This variable takes on a value of either 0 or 1. A value of 1 indicates that at the particular moment in the trajectory specified by the 'time' variable, the pupil was obstructed. A value of 0 indicates that the pupil was not obstructed. 
+
+
+```{r lengthening-trajectory, eval = T}
+# Create the lengthened trajectory from the raw pupillometer data
+pupil_l <- readRDS(here::here("data", "pupil_trajectories.RDS"))
+
+
+#####################################
+#
+# OPTIONAL:
+# Identify participants whose eyes were obstructed for more than 60% of the time
+#
+#####################################
+
+# Create unique identifier for each combination of participant, pupil, timepoint, and # trial
+pupil_l$trial <- paste0(pupil_l$ptid, "_", pupil_l$pupil_measured, 
+                        "_", pupil_l$mtm, "_", 
+                        pupil_l$mtmTrial) 
+# Identify trials that exceed 60% pupil obstruction
+trials_gt60 <- unique(pupil_l$trial[pupil_l$pct_EyeObstructed >= 60]) 
+
+
+# OPTIONAL: This step removes all trials that have greater than 60% eye obstruction
+#pupil_l <- pupil_l[!(pupil_l$trial %in% trials_gt60), ]
+```
+
+
+### Clean the pupil trajectories prior to processing
+
+```{r clean-pupil-trajectories}
+# Clean the pupil trajectories
+pupil_clean_trajectory <- trajectory_cleaning(ids = pupil_l$ptid,
+                                                pupil = pupil_l$pupil_measured,
+                                                mtm = pupil_l$mtm,
+                                                mtmTrial = pupil_l$mtmTrial,
+                                                #trial = pupil_l$trial,
+                                                times = pupil_l$time,
+                                                pd = pupil_l$pd,
+                                                bin = pupil_l$bin,
+                                                bestTrials = F,
+                                                removeBaselineJumps = T,
+                                                plotBaselineJumps = T,
+                                                graphingDset = T)
+
+# Plot the trajectories
+plot_pupil_trajectories(dat = pupil_clean_trajectory[[2]],
+                        evaluateBestTrials = T)
+
+# OPTIONAL: Plot all trajectories and manually verify which trajectory is the "best" one to use for
+#   the pupil trajectory
+pupil_clean <- pupil_clean_trajectory[[1]]
+pupil_clean$bestTrial[pupil_clean$ptid == "004-052" & 
+                         pupil_clean$pupil_measured == "Right" & 
+                         pupil_clean$mtm == "0_Pre" &
+                         pupil_clean$trial == "004-052_Right_0_Pre_2"] <- 1
+pupil_clean$bestTrial[pupil_clean$ptid == "004-052" & 
+                         pupil_clean$pupil_measured == "Right" & 
+                         pupil_clean$mtm == "0_Pre" &
+                         pupil_clean$trial == "004-052_Right_0_Pre_1"] <- 0
+pupil_clean <- pupil_clean[pupil_clean$bestTrial == 1, ]
+
+
+# Plot the raw trajectories to verify our results
+plot_pupil_trajectories(dat = pupil_clean,
+                        evaluateBestTrials = F)
+```
+
+### Smooth the data
+
+
+```{r smooth-trajectories}
+# Use qgam to smooth the pupil trajectories
+pupil_smoothed <- smooth_trajectories(ptids = pupil_clean$ptid,
+                            time = pupil_clean$time,
+                            pupil = pupil_clean$pupil_measured,
+                            mtm = pupil_clean$mtm,
+                            trial = pupil_clean$trial,
+                            pd = pupil_clean$pd,
+                            pupilsize_bl = pupil_clean$pupilSize_bl)
+```
+
+
+
+
+### Obtain scalar metrics 
+
+```{r obtain-scalar-metrics}
+smoothed_curve <- pupil_trajectory_metrics(ptids = pupil_smoothed$ptid,
+                                             pupil = pupil_smoothed$eye,
+                                             mtm = pupil_smoothed$mtm,
+                                             trial = pupil_smoothed$trial,
+                                             time = pupil_smoothed$time,
+                                             pd = pupil_smoothed$pd,
+                                             pred = pupil_smoothed$pred,
+                                             pupilSize_bl = pupil_smoothed$pupilsize_bl,
+                                             plot = F,
+                                             output = 1)
+
+scalar_metrics <- pupil_trajectory_metrics(ptids = pupil_smoothed$ptid,
+                                             pupil = pupil_smoothed$eye,
+                                             mtm = pupil_smoothed$mtm,
+                                             trial = pupil_smoothed$trial,
+                                             time = pupil_smoothed$time,
+                                             pd = pupil_smoothed$pd,
+                                             pred = pupil_smoothed$pred,
+                                             pupilSize_bl = pupil_smoothed$pupilsize_bl,
+                                             plot = F,
+                                             output = 2)
+
+```
+
+
+
