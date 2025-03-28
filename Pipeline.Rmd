@@ -72,6 +72,8 @@ trials_gt60 <- unique(pupil_l$trial[pupil_l$pct_EyeObstructed >= 60])
 
 ### Clean the pupil trajectories prior to processing
 
+This section of the code will take the raw data as an input and identify the best trials for each participant trial. It will also prepare the data for the smoothing function to be applied to it. 
+
 ```{r clean-pupil-trajectories}
 # Clean the pupil trajectories
 pupil_clean_trajectory <- trajectory_cleaning(ids = pupil_l$ptid,
@@ -93,7 +95,8 @@ plot_pupil_trajectories(dat = pupil_clean_trajectory[[2]],
 
 # OPTIONAL: Plot all trajectories and manually verify which trajectory is the "best" one to use for
 #   the pupil trajectory
-pupil_clean <- pupil_clean_trajectory[[1]]
+pupil_clean <- pupil_clean_trajectory[[1]] # Extract the raw trajectories
+# Switch the indicator of "bestTrial" to the correct trial
 pupil_clean$bestTrial[pupil_clean$ptid == "004-052" & 
                          pupil_clean$pupil_measured == "Right" & 
                          pupil_clean$mtm == "0_Pre" &
@@ -102,6 +105,7 @@ pupil_clean$bestTrial[pupil_clean$ptid == "004-052" &
                          pupil_clean$pupil_measured == "Right" & 
                          pupil_clean$mtm == "0_Pre" &
                          pupil_clean$trial == "004-052_Right_0_Pre_1"] <- 0
+# Extract ONLY the best trials
 pupil_clean <- pupil_clean[pupil_clean$bestTrial == 1, ]
 
 
@@ -112,6 +116,7 @@ plot_pupil_trajectories(dat = pupil_clean,
 
 ### Smooth the data
 
+This section will take the data and smooth it using the qgam() function.
 
 ```{r smooth-trajectories}
 # Use qgam to smooth the pupil trajectories
@@ -128,6 +133,8 @@ pupil_smoothed <- smooth_trajectories(ptids = pupil_clean$ptid,
 
 
 ### Obtain scalar metrics 
+
+This section will take in the smooth data and compute the final smoothed trajectories and the scalar summary metrics, depending on which output the user would like from the pupil_trajectory_metrics() function.
 
 ```{r obtain-scalar-metrics}
 smoothed_curve <- pupil_trajectory_metrics(ptids = pupil_smoothed$ptid,
