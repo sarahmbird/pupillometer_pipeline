@@ -28,6 +28,7 @@ This step reads in a selection of sample trajectory data collected from a handhe
 5. *mtmTrial*: A numeric vector. In the case of multiple trials at a particular timepoint for one eye, this is an identifier that orders the trials in order of when they were conducted. 
 6. *pd*: A numeric vector. This variable contains measurements of pupil diameter at each unique time in the trajectory as specified by the 'time' variable.
 7. *bin*: A numeric vector. This variable takes on a value of either 0 or 1. A value of 1 indicates that at the particular moment in the trajectory specified by the 'time' variable, the pupil was obstructed. A value of 0 indicates that the pupil was not obstructed. 
+
 ------ OPTIONAL, for pre-processing before the pupil pipeline  ------------
 8. *pct_EyeObstructed*:  A numeric vector. This variable contains summary information for each participant-trial identifying the percent of pupillary obstruction that occurs during the whole length of the pupil trajectory. It is recommended that users remove trials where there is greater than 60\% obstruction, which is demonstrated in the first step below.
 
